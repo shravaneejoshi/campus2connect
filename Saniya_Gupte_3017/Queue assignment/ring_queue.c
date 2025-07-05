@@ -39,7 +39,7 @@ int rq_enqueue( rq_t *q , int value)
 
 int rq_dequeue( rq_t *q , int *value )
 {
-    if( q==NULL || value== NULL)
+    if( !q || value== NULL)
     {
         return -1;
     }
