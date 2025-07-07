@@ -1,0 +1,21 @@
+We need to:
+    Read data from the stream — chunk by chunk
+    Divide each chunk into fixed-size pieces (32 bytes)
+    Store each piece into a linked list node
+    Keep reading and breaking until the stream ends
+
+PseudoCode 
+    Initialize a head and tail pointer for the linked list (both set to NULL).
+    Loop: Read data from the stream using stream_get (get a chunk, e.g., 50 bytes).
+    While there is unread data in the current chunk:
+        If there are 32 or more bytes left, set copy_len to 32.
+        If there are less than 32 bytes left, set copy_len to the remaining number of bytes.
+        Allocate a new node (fixed_buff).
+        Copy copy_len bytes from the current position in the chunk into the node’s data array.
+        Set node’s data_len to copy_len.
+        Set node’s next pointer to NULL.
+        If head is NULL, set head and tail to this node.
+        Otherwise, link the new node to tail->next and update tail to the new node.
+        Move the offset forward by copy_len and decrease the remaining bytes by copy_len.
+    Repeat the loop until stream_get returns NULL (no more data).
+    Return the head of the linked list.
