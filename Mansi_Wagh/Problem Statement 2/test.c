@@ -4,6 +4,7 @@
 #include <string.h>
 
 #define FIXED_BUFF_LEN 32
+#define CHUNK_SIZE 50
 
 struct fixed_buff {
     uint8_t data[FIXED_BUFF_LEN];
@@ -12,15 +13,25 @@ struct fixed_buff {
 };
 
 struct stream {
-    int dummy; // not used
+    FILE *fp;
 };
 
-// Test data for the stream
-uint8_t test_data1[50];
-uint8_t test_data2[20];
-int call_count = 0;
+// Function prototypes
+struct fixed_buff* build_fixed_buff_list(struct stream *s);
+struct fixed_buff* fixed_buff_alloc(void);
+uint8_t* stream_get(struct stream *s, unsigned int *data_len);
 
-// Mock fixed_buff_alloc
+// Custom memcpy
+void* my_memcpy(void* dest, const void* src, size_t n) {
+    unsigned char* d = (unsigned char*)dest;
+    const unsigned char* s = (const unsigned char*)src;
+    for (size_t i = 0; i < n; i++) {
+        d[i] = s[i];
+    }
+    return dest;
+}
+
+// Allocates a fixed_buff node
 struct fixed_buff* fixed_buff_alloc(void) {
     struct fixed_buff *b = (struct fixed_buff*)malloc(sizeof(struct fixed_buff));
     if (b) {
@@ -30,42 +41,45 @@ struct fixed_buff* fixed_buff_alloc(void) {
     return b;
 }
 
-// Mock stream_get
+// Stream get reads fixed chunks from file
 uint8_t* stream_get(struct stream *s, unsigned int *data_len) {
-    if (call_count == 0) {
-        *data_len = 50;
-        call_count++;
-        return test_data1;
-    } else if (call_count == 1) {
-        *data_len = 20;
-        call_count++;
-        return test_data2;
-    } else {
+    static uint8_t buffer[CHUNK_SIZE];
+    size_t read_bytes = fread(buffer, 1, CHUNK_SIZE, s->fp);
+
+    if (read_bytes == 0) {
         return NULL;
     }
+
+    *data_len = (unsigned int)read_bytes;
+    return buffer;
 }
 
-// Declaration of function to test
-struct fixed_buff* build_fixed_buff_list(struct stream *s);
-
-int main() {
-    FILE *fout = fopen("output.txt", "w");
-    if (!fout) {
-        printf("Failed to open output.txt\n");
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        printf("Usage: %s <input_file>\n", argv[0]);
         return 1;
     }
 
-    // Fill test data with simple pattern
-    for (int i = 0; i < 50; i++) test_data1[i] = (uint8_t)(i+1);
-    for (int i = 0; i < 20; i++) test_data2[i] = (uint8_t)(i+101);
+    FILE *fin = fopen(argv[1], "rb");
+    if (!fin) {
+        printf("Failed to open input file: %s\n", argv[1]);
+        return 1;
+    }
 
-    struct stream s;
+    FILE *fout = fopen("output.txt", "w");
+    if (!fout) {
+        printf("Failed to open output.txt\n");
+        fclose(fin);
+        return 1;
+    }
+
+    struct stream s = { .fp = fin };
     struct fixed_buff *list = build_fixed_buff_list(&s);
 
     // Print the linked list
     int node_num = 1;
-    struct fixed_buff *curr = list;
     int total_bytes = 0;
+    struct fixed_buff *curr = list;
     while (curr) {
         fprintf(fout, "Node %d: data_len = %u, data = ", node_num, curr->data_len);
         for (unsigned int j = 0; j < curr->data_len; j++) {
@@ -76,11 +90,8 @@ int main() {
         curr = curr->next;
         node_num++;
     }
-    if (total_bytes == 70) {
-        fprintf(fout, "SUCCESS: Total bytes = %d as expected.\n", total_bytes);
-    } else {
-        fprintf(fout, "ERROR: Total bytes = %d, expected 70.\n", total_bytes);
-    }
+
+    fprintf(fout, "Total bytes processed = %d\n", total_bytes);
 
     // Free the list
     curr = list;
@@ -90,6 +101,7 @@ int main() {
         free(tmp);
     }
 
+    fclose(fin);
     fclose(fout);
     return 0;
-} 
+}
